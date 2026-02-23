@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "69015986669",
+    "project_id": "conexionescolar-63bd3",
+    "storage_bucket": "conexionescolar-63bd3.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:69015986669:android:b97fa449f5465bb25f47e4",
+        "android_client_info": {
+          "package_name": "com.conexionescolar.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBYlfWFdl9iqEbM8JIdRg6scdtxVJIBNj4"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

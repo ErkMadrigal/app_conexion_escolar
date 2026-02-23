@@ -1,22 +1,25 @@
-import { createRouter, createWebHistory } from '@ionic/vue-router';
-import { RouteRecordRaw } from 'vue-router';
-import HomePage from '../views/HomePage.vue'
+import { createRouter, createWebHistory } from "@ionic/vue-router";
+import TabsPage from "@/views/TabsPage.vue";
 
-const routes: Array<RouteRecordRaw> = [
+const routes = [
+  { path: "/", redirect: "/tabs/hijos" },
+
   {
-    path: '/',
-    redirect: '/home'
+    path: "/tabs/",
+    component: TabsPage,
+    children: [
+      { path: "", redirect: "/tabs/hijos" },
+      { path: "hijos", component: () => import("@/views/HijosPage.vue") },
+      { path: "historial", component: () => import("@/views/HistorialPage.vue") },
+      { path: "perfil", component: () => import("@/views/PerfilPage.vue") },
+    ],
   },
-  {
-    path: '/home',
-    name: 'Home',
-    component: HomePage
-  }
-]
 
-const router = createRouter({
+  // Detalle (lo abrimos desde historial o desde push)
+  { path: "/asistencia/:id", component: () => import("@/views/AsistenciaDetalle.vue") },
+];
+
+export default createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes
-})
-
-export default router
+  routes,
+});
