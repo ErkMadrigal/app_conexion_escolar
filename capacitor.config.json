@@ -1,0 +1,8 @@
+{
+  "appId": "com.conexionescolar.app",
+  "appName": "ConexionEscolar",
+  "webDir": "dist",
+  "server": {
+    "cleartext": true
+  }
+}
