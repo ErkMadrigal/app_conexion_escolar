@@ -1,13 +1,21 @@
 // src/services/push.ts
 import { PushNotifications } from "@capacitor/push-notifications";
 import { Capacitor } from "@capacitor/core";
+import { Device } from "@capacitor/device";
 import { apiPost } from "@/api";
+
+let listenersReady = false;
 
 export async function initPushAndRegister() {
   // Push real solo en Android/iOS (no web)
   const platform = Capacitor.getPlatform();
   if (platform === "web") return;
 
+  // ✅ device_id real del dispositivo
+  const { identifier } = await Device.getId();
+  const device_id = identifier;
+
+  // ✅ permisos
   let perm = await PushNotifications.checkPermissions();
   if (perm.receive !== "granted") {
     perm = await PushNotifications.requestPermissions();
@@ -17,16 +25,20 @@ export async function initPushAndRegister() {
     return;
   }
 
+  // ✅ registra con APNs/FCM
   await PushNotifications.register();
 
-  // Cuando Firebase/Apple entrega el token
-  PushNotifications.addListener("registration", async (token) => {
+  // ✅ evita listeners duplicados si llamas esto más de una vez (ej. logout/login)
+  if (listenersReady) return;
+  listenersReady = true;
+
+  // ✅ Cuando entrega el token (FCM en Android)
+  PushNotifications.addListener("registration", async (t) => {
     try {
-      // tu endpoint actual Devices::register espera { token, platform, device_id }
       await apiPost("/devices/register", {
-        token: token.value,      // FCM token
-        platform: platform,
-        device_id: "ionic-capacitor",
+        token: t.value,       // el controller espera "token"
+        platform,             // android / ios
+        device_id,            // id real
       });
       console.log("✅ FCM token registrado en BD");
     } catch (e) {
@@ -36,5 +48,15 @@ export async function initPushAndRegister() {
 
   PushNotifications.addListener("registrationError", (err) => {
     console.log("❌ Push registration error:", err);
+  });
+
+  // (Opcional) cuando llega una notificación en foreground
+  PushNotifications.addListener("pushNotificationReceived", (notification) => {
+    console.log("🔔 Push recibido:", notification);
+  });
+
+  // (Opcional) cuando el usuario toca la notificación
+  PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
+    console.log("👉 Push action:", action);
   });
 }

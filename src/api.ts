@@ -1,11 +1,21 @@
 // src/api.ts
 import { getToken, setSession } from "@/services/session";
+import { API_URL } from "@/config/api";
+import { Device } from "@capacitor/device";
 
-const API = import.meta.env.VITE_API_URL;
+const API = API_URL;
+
+function authHeaders() {
+  const token = getToken();
+  return token ? { Authorization: `Bearer ${token}` } : {};
+}
 
 export async function apiGet(path: string) {
   const resp = await fetch(API + path, {
-    headers: { "Authorization": `Bearer ${getToken()}` },
+    headers: {
+      Accept: "application/json",
+      ...authHeaders(),
+    },
   });
 
   if (!resp.ok) {
@@ -20,7 +30,8 @@ export async function apiPost(path: string, body: any) {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${getToken()}`,
+      Accept: "application/json",
+      ...authHeaders(),
     },
     body: JSON.stringify(body),
   });
@@ -37,13 +48,32 @@ export async function apiPost(path: string, body: any) {
  * POST /api/auth/login-mobile
  */
 export async function loginMobile(curp: string, password: string) {
+  // device_id real del dispositivo
+  const { identifier } = await Device.getId();
+  const device_id = identifier;
+
+  // por ahora vacío hasta que metas FCM real
+  const fcm_token = "";
+
+  // si luego quieres detectar ios/android, lo ajustamos
+  const platform = "android";
+
   const resp = await fetch(API + "/auth/login-mobile", {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ curp, password }),
+    headers: {
+      "Content-Type": "application/json",
+      Accept: "application/json",
+    },
+    body: JSON.stringify({ curp, password, fcm_token, platform, device_id }),
   });
 
-  const data = await resp.json().catch(() => ({}));
+  const text = await resp.text().catch(() => "");
+  let data: any = {};
+  try {
+    data = JSON.parse(text);
+  } catch {
+    data = { raw: text };
+  }
 
   if (!resp.ok || data?.status !== "ok") {
     throw new Error(data?.message || `Login falló (${resp.status})`);
@@ -58,5 +88,6 @@ export async function loginMobile(curp: string, password: string) {
     must_change_password: number;
     estudiante: any;
     message: string;
+    device?: any; // 👈 ahora tu backend ya puede regresarlo
   };
 }

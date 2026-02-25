@@ -20,7 +20,6 @@
               label-placement="stacked"
               v-model="curp"
               autocapitalize="characters"
-              placeholder="MAFE990706HMCDLR05"
             />
           </ion-item>
 
@@ -29,9 +28,16 @@
               label="Password"
               label-placement="stacked"
               v-model="password"
-              type="password"
-              placeholder="MAFE9907"
+              :type="showPassword ? 'text' : 'password'"
             />
+            <ion-button
+              fill="clear"
+              slot="end"
+              size="small"
+              @click="showPassword = !showPassword"
+            >
+              {{ showPassword ? "Ocultar" : "Ver" }}
+            </ion-button>
           </ion-item>
 
           <ion-text color="danger" v-if="error" class="ion-margin-top">
@@ -64,9 +70,10 @@ import { initPushAndRegister } from "@/services/push";
 
 const router = useRouter();
 const curp = ref("");
-const password = ref("");
+const password = ref(""); 
 const loading = ref(false);
 const error = ref("");
+const showPassword = ref(false);
 
 async function doLogin() {
   error.value = "";
