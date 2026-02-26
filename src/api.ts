@@ -52,6 +52,7 @@ export async function loginMobile(curp: string, password: string) {
   const { identifier } = await Device.getId();
   const device_id = identifier;
 
+  localStorage.setItem("device_id", device_id);
   // por ahora vacío hasta que metas FCM real
   const fcm_token = "";
 

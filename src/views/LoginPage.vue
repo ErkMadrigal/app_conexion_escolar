@@ -49,7 +49,7 @@
           </ion-button>
 
           <ion-note class="ion-margin-top">
-            Contraseña temporal: primeros 8 de la CURP (ej: MAFE9907)
+            Contraseña temporal: primeros 8 caracteres de la CURP (ej: EJEM900226HDFRRR03 → EJEM9002)
           </ion-note>
         </ion-card-content>
       </ion-card>

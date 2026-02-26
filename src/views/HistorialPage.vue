@@ -3,10 +3,15 @@
     <ion-header>
       <ion-toolbar>
         <ion-title>Asistencias Estudiante</ion-title>
+
+        <!-- opcional: botón para regresar a hijos -->
+        <ion-buttons slot="end">
+          <ion-button router-link="/tabs/hijos">Hijos</ion-button>
+        </ion-buttons>
       </ion-toolbar>
 
       <ion-toolbar>
-        <ion-segment v-model="tipe" @ionChange="loadAssists(true)">
+        <ion-segment v-model="tipe">
           <ion-segment-button value="daily">
             <ion-label>Diario</ion-label>
           </ion-segment-button>
@@ -25,31 +30,16 @@
         <ion-refresher-content />
       </ion-refresher>
 
-      <!-- ID Estudiante -->
-      <ion-card>
+      <!-- ✅ Estudiante seleccionado (viene de HijosPage) -->
+      <ion-card v-if="selected">
         <ion-card-header>
-          <ion-card-title>Parámetros</ion-card-title>
+          <ion-card-title>{{ selected.nombreCompleto }}</ion-card-title>
           <ion-card-subtitle>Consulta por tipo: {{ tipe }}</ion-card-subtitle>
         </ion-card-header>
 
         <ion-card-content>
-          <ion-item>
-            <ion-label position="stacked">ID Estudiante</ion-label>
-            <ion-input
-              v-model="idEstudentInput"
-              inputmode="numeric"
-              placeholder="Ej: 12"
-              @ionBlur="applyStudentId"
-            />
-          </ion-item>
-
-          <ion-button
-            expand="block"
-            class="ion-margin-top"
-            :disabled="loading"
-            @click="loadAssists(true)"
-          >
-            {{ loading ? "Cargando..." : "Consultar" }}
+          <ion-button expand="block" :disabled="loading" @click="loadAssists(true)">
+            {{ loading ? "Cargando..." : "Actualizar" }}
           </ion-button>
 
           <ion-text color="danger" v-if="errorMsg">
@@ -58,20 +48,33 @@
         </ion-card-content>
       </ion-card>
 
+      <!-- ✅ Si no hay hijo seleccionado -->
+      <ion-card v-else>
+        <ion-card-header>
+          <ion-card-title>Sin estudiante seleccionado</ion-card-title>
+          <ion-card-subtitle>
+            Regresa a <b>Mis hijos</b> y selecciona uno.
+          </ion-card-subtitle>
+        </ion-card-header>
+
+        <ion-card-content>
+          <ion-button expand="block" router-link="/tabs/hijos">
+            Ir a Mis hijos
+          </ion-button>
+        </ion-card-content>
+      </ion-card>
+
       <!-- Resultados -->
-      <ion-card v-if="!loading">
+      <ion-card v-if="selected && !loading">
         <ion-card-header>
           <ion-card-title>Resultados</ion-card-title>
-          <ion-card-subtitle>
-            Registros: {{ count }}
-          </ion-card-subtitle>
+          <ion-card-subtitle>Registros: {{ count }}</ion-card-subtitle>
         </ion-card-header>
 
         <ion-card-content>
           <ion-list v-if="assists.length">
             <ion-item v-for="(row, i) in assists" :key="i">
               <ion-label>
-                <!-- Ajusta estos campos según tu backend -->
                 <h2>{{ pickDate(row) }}</h2>
                 <p>{{ pickType(row) }}</p>
                 <p>{{ pickName(row) }}</p>
@@ -85,27 +88,16 @@
         </ion-card-content>
       </ion-card>
 
-      <!-- Debug -->
-      <ion-accordion-group class="ion-margin-top" v-if="lastRaw">
-        <ion-accordion value="debug">
-          <ion-item slot="header">
-            <ion-label>Debug (response raw)</ion-label>
-          </ion-item>
-          <div
-            slot="content"
-            style="padding:12px; font-family: monospace; font-size: 12px; white-space: pre-wrap;"
-          >
-            {{ lastRaw }}
-          </div>
-        </ion-accordion>
-      </ion-accordion-group>
+      
     </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref } from "vue";
+import { ref, watch } from "vue";
+import { onIonViewWillEnter } from "@ionic/vue";
 import { API_URL } from "@/config/api";
+import { getSelectedHijo } from "@/lib/state";
 
 import {
   IonPage,
@@ -122,8 +114,8 @@ import {
   IonCardSubtitle,
   IonCardContent,
   IonItem,
-  IonInput,
   IonButton,
+  IonButtons,
   IonText,
   IonList,
   IonRefresher,
@@ -134,37 +126,29 @@ import {
 
 type Tipe = "daily" | "weekly" | "monthly";
 
-const tipe = ref<Tipe>("daily");
+type Hijo = {
+  id: string | number;
+  nombreCompleto: string;
+};
 
-const idEstudent = ref<number>(0);
-const idEstudentInput = ref<string>("");
+const tipe = ref<Tipe>("daily");
+const selected = ref<Hijo | null>((getSelectedHijo() as any) ?? null);
 
 const loading = ref(false);
-const errorMsg = ref<string>("");
+const errorMsg = ref("");
 
 const assists = ref<any[]>([]);
-const count = ref<number>(0);
+const count = ref(0);
 
-const lastRaw = ref<string>("");
-
-function applyStudentId() {
-  const n = parseInt(idEstudentInput.value || "0", 10);
-  idEstudent.value = Number.isFinite(n) ? n : 0;
-}
+const lastRaw = ref("");
 
 function pickDate(row: any) {
-  // Ajusta según tu respuesta real del modelo
   return row?.ingreso ?? "Sin fecha";
 }
-
 function pickType(row: any) {
-  // Ajusta según tu respuesta real del modelo
   return row?.tipo ?? "";
 }
-
-
 function pickName(row: any) {
-  // Ajusta según tu respuesta real del modelo
   return row?.nombreCompleto ?? "";
 }
 
@@ -174,8 +158,12 @@ async function loadAssists(showErrors = true) {
   count.value = 0;
   lastRaw.value = "";
 
-  if (idEstudent.value <= 0) {
-    if (showErrors) errorMsg.value = "Pon un id_estudent válido.";
+  // ✅ Re-lee por si cambió en HijosPage
+  selected.value = (getSelectedHijo() as any) ?? null;
+
+  const id = selected.value?.id ? Number(selected.value.id) : 0;
+  if (id <= 0) {
+    if (showErrors) errorMsg.value = "Primero selecciona un estudiante en Mis hijos.";
     return;
   }
 
@@ -186,13 +174,10 @@ async function loadAssists(showErrors = true) {
 
     const resp = await fetch(url, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        // "Authorization": `Bearer ${token}`, // si manejas JWT
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tipe: tipe.value,
-        id_estudent: idEstudent.value,
+        id_estudent: id,
       }),
     });
 
@@ -202,17 +187,11 @@ async function loadAssists(showErrors = true) {
     let json: any = null;
     try { json = JSON.parse(text); } catch {}
 
-    if (!resp.ok) {
-      throw new Error(json?.message || `HTTP ${resp.status}`);
-    }
-
-    if (!json || json.status !== "ok") {
-      throw new Error(json?.message || "Respuesta inválida del servidor");
-    }
+    if (!resp.ok) throw new Error(json?.message || `HTTP ${resp.status}`);
+    if (!json || json.status !== "ok") throw new Error(json?.message || "Respuesta inválida del servidor");
 
     assists.value = Array.isArray(json.data) ? json.data : [];
     count.value = typeof json.count === "number" ? json.count : assists.value.length;
-
   } catch (e: any) {
     if (showErrors) errorMsg.value = e?.message || "Error al consultar";
   } finally {
@@ -224,4 +203,14 @@ async function onRefresh(ev: CustomEvent) {
   await loadAssists(false);
   (ev.target as any).complete();
 }
+
+// ✅ Cada que entras a la pantalla, carga según el hijo seleccionado
+onIonViewWillEnter(() => {
+  loadAssists(false);
+});
+
+// ✅ Si cambias el segment, recarga
+watch(tipe, () => {
+  loadAssists(false);
+});
 </script>

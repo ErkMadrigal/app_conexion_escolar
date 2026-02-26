@@ -7,7 +7,7 @@
       </ion-toolbar>
     </ion-header>
     <ion-content class="ion-padding">
-      <p>Aquí luego metemos: cerrar sesión, cambiar contraseña, etc.</p>
+      <p>En desarrollo</p>
 
       <ion-button expand="block" color="danger" @click="logout">
         Cerrar sesión
