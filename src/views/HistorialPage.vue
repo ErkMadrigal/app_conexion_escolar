@@ -2,167 +2,226 @@
   <ion-page>
     <ion-header>
       <ion-toolbar>
-        <ion-title>Historial</ion-title>
+        <ion-title>Asistencias Estudiante</ion-title>
       </ion-toolbar>
 
       <ion-toolbar>
-        <ion-item lines="none">
-          <ion-label>Hijo</ion-label>
-          <ion-select :value="selectedId" interface="popover" @ionChange="onChangeHijo">
-            <ion-select-option v-for="h in hijos" :key="h.id" :value="h.id">
-              {{ fullName(h) }}
-            </ion-select-option>
-          </ion-select>
-        </ion-item>
-
-        <ion-segment :value="range" @ionChange="onChangeRange">
-          <ion-segment-button value="hoy"><ion-label>Hoy</ion-label></ion-segment-button>
-          <ion-segment-button value="semana"><ion-label>Semana</ion-label></ion-segment-button>
-          <ion-segment-button value="todo"><ion-label>Todo</ion-label></ion-segment-button>
+        <ion-segment v-model="tipe" @ionChange="loadAssists(true)">
+          <ion-segment-button value="daily">
+            <ion-label>Diario</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="weekly">
+            <ion-label>Semana</ion-label>
+          </ion-segment-button>
+          <ion-segment-button value="monthly">
+            <ion-label>Mes</ion-label>
+          </ion-segment-button>
         </ion-segment>
       </ion-toolbar>
     </ion-header>
 
-    <ion-content>
+    <ion-content class="ion-padding">
       <ion-refresher slot="fixed" @ionRefresh="onRefresh">
         <ion-refresher-content />
       </ion-refresher>
 
-      <ion-list v-if="items.length">
-        <ion-item v-for="a in items" :key="a.id" button @click="openDetalle(a.id)">
-          <ion-icon slot="start" :icon="a.tipo_escaneo === 0 ? logInOutline : logOutOutline" />
-          <ion-label>
-            <h2>{{ a.tipo_escaneo === 0 ? "ENTRADA" : "SALIDA" }}</h2>
-            <p>{{ formatDate(a.ingreso) }}</p>
-          </ion-label>
-          <ion-badge color="medium">{{ a.id }}</ion-badge>
-        </ion-item>
-      </ion-list>
+      <!-- ID Estudiante -->
+      <ion-card>
+        <ion-card-header>
+          <ion-card-title>Parámetros</ion-card-title>
+          <ion-card-subtitle>Consulta por tipo: {{ tipe }}</ion-card-subtitle>
+        </ion-card-header>
 
-      <ion-item v-else-if="!loading">
-        <ion-label>No hay asistencias para este rango.</ion-label>
-      </ion-item>
+        <ion-card-content>
+          <ion-item>
+            <ion-label position="stacked">ID Estudiante</ion-label>
+            <ion-input
+              v-model="idEstudentInput"
+              inputmode="numeric"
+              placeholder="Ej: 12"
+              @ionBlur="applyStudentId"
+            />
+          </ion-item>
 
-      <ion-loading :is-open="loading" message="Cargando..." />
+          <ion-button
+            expand="block"
+            class="ion-margin-top"
+            :disabled="loading"
+            @click="loadAssists(true)"
+          >
+            {{ loading ? "Cargando..." : "Consultar" }}
+          </ion-button>
+
+          <ion-text color="danger" v-if="errorMsg">
+            <p class="ion-margin-top">{{ errorMsg }}</p>
+          </ion-text>
+        </ion-card-content>
+      </ion-card>
+
+      <!-- Resultados -->
+      <ion-card v-if="!loading">
+        <ion-card-header>
+          <ion-card-title>Resultados</ion-card-title>
+          <ion-card-subtitle>
+            Registros: {{ count }}
+          </ion-card-subtitle>
+        </ion-card-header>
+
+        <ion-card-content>
+          <ion-list v-if="assists.length">
+            <ion-item v-for="(row, i) in assists" :key="i">
+              <ion-label>
+                <!-- Ajusta estos campos según tu backend -->
+                <h2>{{ pickDate(row) }}</h2>
+                <p>{{ pickType(row) }}</p>
+                <p>{{ pickName(row) }}</p>
+              </ion-label>
+            </ion-item>
+          </ion-list>
+
+          <div v-else>
+            <p>No hay asistencias para mostrar.</p>
+          </div>
+        </ion-card-content>
+      </ion-card>
+
+      <!-- Debug -->
+      <ion-accordion-group class="ion-margin-top" v-if="lastRaw">
+        <ion-accordion value="debug">
+          <ion-item slot="header">
+            <ion-label>Debug (response raw)</ion-label>
+          </ion-item>
+          <div
+            slot="content"
+            style="padding:12px; font-family: monospace; font-size: 12px; white-space: pre-wrap;"
+          >
+            {{ lastRaw }}
+          </div>
+        </ion-accordion>
+      </ion-accordion-group>
     </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
+import { ref } from "vue";
+import { API_URL } from "@/config/api";
+
 import {
-  IonPage, IonHeader, IonToolbar, IonTitle, IonContent,
-  IonItem, IonLabel, IonSelect, IonSelectOption,
-  IonList, IonLoading, IonIcon, IonBadge,
-  IonRefresher, IonRefresherContent,
-  IonSegment, IonSegmentButton
+  IonPage,
+  IonHeader,
+  IonToolbar,
+  IonTitle,
+  IonContent,
+  IonSegment,
+  IonSegmentButton,
+  IonLabel,
+  IonCard,
+  IonCardHeader,
+  IonCardTitle,
+  IonCardSubtitle,
+  IonCardContent,
+  IonItem,
+  IonInput,
+  IonButton,
+  IonText,
+  IonList,
+  IonRefresher,
+  IonRefresherContent,
+  IonAccordionGroup,
+  IonAccordion,
 } from "@ionic/vue";
-import { onMounted, ref, computed } from "vue";
-import { useRouter } from "vue-router";
-import { apiGet } from "@/lib/api";
-import { getSelectedHijo, setSelectedHijo, type Hijo } from "@/lib/state";
-import { logInOutline, logOutOutline } from "ionicons/icons";
 
-type Asistencia = {
-  id: number;
-  id_estudiante: number;
-  ingreso: string;      // datetime string
-  tipo_escaneo: 0 | 1;  // 0 entrada, 1 salida
-};
+type Tipe = "daily" | "weekly" | "monthly";
 
-const router = useRouter();
+const tipe = ref<Tipe>("daily");
 
-const hijos = ref<Hijo[]>([]);
-const selected = ref<Hijo | null>(getSelectedHijo());
-const selectedId = computed(() => selected.value?.id ?? null);
+const idEstudent = ref<number>(0);
+const idEstudentInput = ref<string>("");
 
-const items = ref<Asistencia[]>([]);
 const loading = ref(false);
-const range = ref<"hoy"|"semana"|"todo">("hoy");
+const errorMsg = ref<string>("");
 
-function fullName(h: Hijo) {
-  return `${h.nombres} ${h.apellidos}`.trim();
+const assists = ref<any[]>([]);
+const count = ref<number>(0);
+
+const lastRaw = ref<string>("");
+
+function applyStudentId() {
+  const n = parseInt(idEstudentInput.value || "0", 10);
+  idEstudent.value = Number.isFinite(n) ? n : 0;
 }
 
-function formatDate(s: string) {
-  // si te llega "2026-02-21 08:01:10" lo muestra bonito
-  try {
-    const iso = s.includes("T") ? s : s.replace(" ", "T");
-    const d = new Date(iso);
-    return d.toLocaleString();
-  } catch {
-    return s;
-  }
+function pickDate(row: any) {
+  // Ajusta según tu respuesta real del modelo
+  return row?.ingreso ?? "Sin fecha";
 }
 
-function getRangeParams() {
-  if (range.value === "todo") return "";
-  const now = new Date();
-  const to = now.toISOString().slice(0, 10);
-  const fromDate = new Date(now);
-  if (range.value === "hoy") {
-    // mismo día
-  } else {
-    fromDate.setDate(fromDate.getDate() - 7);
-  }
-  const from = fromDate.toISOString().slice(0, 10);
-  return `&from=${from}&to=${to}`;
+function pickType(row: any) {
+  // Ajusta según tu respuesta real del modelo
+  return row?.tipo ?? "";
 }
 
-async function loadHijos() {
-  const data = await apiGet("/me/hijos");
-  hijos.value = Array.isArray(data) ? data : (data?.items ?? []);
-  if (!selected.value && hijos.value.length) {
-    selected.value = hijos.value[0];
-    setSelectedHijo(hijos.value[0]);
-  } else if (selected.value) {
-    // refrescar referencia por si cambió
-    const found = hijos.value.find(h => h.id === selected.value!.id);
-    if (found) selected.value = found;
-  }
+
+function pickName(row: any) {
+  // Ajusta según tu respuesta real del modelo
+  return row?.nombreCompleto ?? "";
 }
 
-async function loadHistorial() {
-  if (!selected.value) {
-    items.value = [];
+async function loadAssists(showErrors = true) {
+  errorMsg.value = "";
+  assists.value = [];
+  count.value = 0;
+  lastRaw.value = "";
+
+  if (idEstudent.value <= 0) {
+    if (showErrors) errorMsg.value = "Pon un id_estudent válido.";
     return;
   }
-  loading.value = true;
-  try {
-    const q = `?hijo_id=${selected.value.id}${getRangeParams()}`;
-    const data = await apiGet(`/asistencias${q}`);
 
-    // soporta {items: []} o [] directo
-    items.value = Array.isArray(data) ? data : (data?.items ?? []);
+  loading.value = true;
+
+  try {
+    const url = `${API_URL}/estudiantes/getAssistsEstudent`;
+
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        // "Authorization": `Bearer ${token}`, // si manejas JWT
+      },
+      body: JSON.stringify({
+        tipe: tipe.value,
+        id_estudent: idEstudent.value,
+      }),
+    });
+
+    const text = await resp.text();
+    lastRaw.value = text;
+
+    let json: any = null;
+    try { json = JSON.parse(text); } catch {}
+
+    if (!resp.ok) {
+      throw new Error(json?.message || `HTTP ${resp.status}`);
+    }
+
+    if (!json || json.status !== "ok") {
+      throw new Error(json?.message || "Respuesta inválida del servidor");
+    }
+
+    assists.value = Array.isArray(json.data) ? json.data : [];
+    count.value = typeof json.count === "number" ? json.count : assists.value.length;
+
+  } catch (e: any) {
+    if (showErrors) errorMsg.value = e?.message || "Error al consultar";
   } finally {
     loading.value = false;
   }
 }
 
-async function onChangeHijo(ev: any) {
-  const id = Number(ev.detail.value);
-  const h = hijos.value.find(x => x.id === id) || null;
-  selected.value = h;
-  if (h) setSelectedHijo(h);
-  await loadHistorial();
-}
-
-async function onChangeRange(ev: any) {
-  range.value = ev.detail.value;
-  await loadHistorial();
-}
-
-function openDetalle(id: number) {
-  router.push(`/asistencia/${id}`);
-}
-
 async function onRefresh(ev: CustomEvent) {
-  await loadHijos();
-  await loadHistorial();
+  await loadAssists(false);
   (ev.target as any).complete();
 }
-
-onMounted(async () => {
-  await loadHijos();
-  await loadHistorial();
-});
 </script>
