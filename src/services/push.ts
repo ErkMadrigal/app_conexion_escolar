@@ -4,11 +4,13 @@ import { LocalNotifications } from "@capacitor/local-notifications";
 import { Capacitor } from "@capacitor/core";
 import { Device } from "@capacitor/device";
 import { apiPost } from "@/api";
+import { enableWebPush } from "@/services/webpush";
 
 let listenersReady = false;
 
 export async function initPushAndRegister() {
   const platform = Capacitor.getPlatform();
+  // ✅ En web (PWA), el push es Web Push (no Capacitor PushNotifications)
   if (platform === "web") return;
 
   // ✅ device_id real del dispositivo
@@ -26,11 +28,9 @@ export async function initPushAndRegister() {
   }
 
   // ✅ permisos LOCAL (para mostrar notificación cuando está en foreground)
-  // En Android 13+ también lo pide.
   const localPerm = await LocalNotifications.requestPermissions();
   if (localPerm.display !== "granted") {
     console.log("LocalNotifications permiso NO concedido");
-    // no hacemos return, porque en background igual pueden llegar las push del sistema
   }
 
   // ✅ registra con FCM/APNs
@@ -62,8 +62,6 @@ export async function initPushAndRegister() {
   PushNotifications.addListener("pushNotificationReceived", async (notification) => {
     console.log("🔔 Push recibido:", notification);
 
-    // ⚠️ En foreground a veces NO se muestra banner del sistema.
-    // ✅ Forzamos una notificación LOCAL con title/body.
     const title =
       (notification as any)?.title ||
       (notification as any)?.notification?.title ||
@@ -74,7 +72,6 @@ export async function initPushAndRegister() {
       (notification as any)?.notification?.body ||
       "";
 
-    // Si viene vacío, al menos no truena
     try {
       await LocalNotifications.schedule({
         notifications: [
@@ -82,7 +79,6 @@ export async function initPushAndRegister() {
             id: Date.now() % 2147483647,
             title,
             body,
-            // data extra para navegar después si quieres
             extra: (notification as any)?.data || {},
           },
         ],
@@ -95,12 +91,19 @@ export async function initPushAndRegister() {
   // ✅ Cuando el usuario toca la notificación (push o local)
   PushNotifications.addListener("pushNotificationActionPerformed", (action) => {
     console.log("👉 Push action:", action);
-    // action.notification.data -> aquí puedes navegar por tipo/alumno_id/asistencia_id
   });
 
   // ✅ Cuando el usuario toca una LOCAL notification
   LocalNotifications.addListener("localNotificationActionPerformed", (event) => {
     console.log("👉 Local action:", event);
-    // event.notification.extra -> navegar
+  });
+}
+
+// ✅ Para PWA (iPhone): llama esto desde un botón 'Activar notificaciones'
+export async function enablePwaPush(alumno_id: number, tutor_id?: number) {
+  return enableWebPush({
+    alumno_id,
+    tutor_id,
+    platform: "ios_pwa",
   });
 }

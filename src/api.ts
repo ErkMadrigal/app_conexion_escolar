@@ -5,18 +5,19 @@ import { Device } from "@capacitor/device";
 
 const API = API_URL;
 
-function authHeaders() {
+// ✅ Siempre regresa Record<string,string> para que TS no haga unión rara
+function authHeaders(): Record<string, string> {
   const token = getToken();
   return token ? { Authorization: `Bearer ${token}` } : {};
 }
 
 export async function apiGet(path: string) {
-  const resp = await fetch(API + path, {
-    headers: {
-      Accept: "application/json",
-      ...authHeaders(),
-    },
-  });
+  const headers: Record<string, string> = {
+    Accept: "application/json",
+    ...authHeaders(),
+  };
+
+  const resp = await fetch(API + path, { headers });
 
   if (!resp.ok) {
     const txt = await resp.text().catch(() => "");
@@ -26,13 +27,15 @@ export async function apiGet(path: string) {
 }
 
 export async function apiPost(path: string, body: any) {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    ...authHeaders(),
+  };
+
   const resp = await fetch(API + path, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      ...authHeaders(),
-    },
+    headers,
     body: JSON.stringify(body),
   });
 
@@ -89,6 +92,6 @@ export async function loginMobile(curp: string, password: string) {
     must_change_password: number;
     estudiante: any;
     message: string;
-    device?: any; // 👈 ahora tu backend ya puede regresarlo
+    device?: any;
   };
 }

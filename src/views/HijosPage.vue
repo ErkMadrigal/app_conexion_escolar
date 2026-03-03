@@ -6,6 +6,9 @@
 
         <!-- Botón en header -->
         <ion-buttons slot="end">
+          <ion-button v-if="isWeb" @click="enableNotif" :disabled="enabling">
+            {{ enabling ? "Activando..." : "Activar notificaciones" }}
+          </ion-button>
           <ion-button @click="openAddModal">
             Agregar hijo
           </ion-button>
@@ -93,6 +96,9 @@ import {
 import { onMounted, ref } from "vue";
 import { apiPost } from "@/api"; // <-- usa tu helper real
 import { getSelectedHijo, setSelectedHijo } from "@/lib/state";
+import { getOrCreateWebDeviceId } from "@/services/device";
+import { Capacitor } from "@capacitor/core";
+import { enableWebPush } from "@/services/webpush";
 
 /**
  * Tu EP regresa:
@@ -112,12 +118,53 @@ const addOpen = ref(false);
 const curp = ref("");
 const errorText = ref("");
 
+const isWeb = Capacitor.getPlatform() === "web";
+const enabling = ref(false);
+
+
+async function enableNotif() {
+  if (!selected.value?.id) {
+    alert("Selecciona un hijo primero");
+    return;
+  }
+
+  console.log("device_id", getDeviceId());
+  console.log("Notification.permission", Notification.permission);
+
+
+  enabling.value = true;
+
+  try {
+    const res = await enableWebPush({
+      alumno_id: Number(selected.value.id),
+      // tutor_id: userStore.user?.id,  // si quieres enviarlo también
+      platform: "ios_pwa",
+    });
+
+    console.log("backend", res.backend);
+
+    console.log("✅ WebPush activado:", res);
+    alert("Notificaciones activadas ✅");
+  } catch (e: any) {
+    console.error(e);
+    alert(e?.message ?? String(e));
+  } finally {
+    enabling.value = false;
+  }
+}
+
+
+
 function getDeviceId(): string {
-  // ✅ Ajusta a donde tú guardas tu device_id
-  // Ejemplos:
-  // return localStorage.getItem("device_id") ?? "";
-  // o si lo guardas como "DEVICE_ID"
-  return localStorage.getItem("device_id") ?? "112ebd385b4b1d12";
+    const platform = Capacitor.getPlatform();
+
+    // ✅ PWA/web: usa el web_device_id persistente
+    if (platform === "web") {
+      return getOrCreateWebDeviceId();
+    }
+
+    // ✅ Android/iOS nativo: el device_id que guardas (loginMobile)
+    return localStorage.getItem("device_id") ?? "";
 }
 
 async function load() {
@@ -128,6 +175,10 @@ async function load() {
       hijos.value = [];
       selected.value = null;
       return;
+    }
+
+    if (Capacitor.getPlatform() === "web") {
+      await apiPost("/push/register-web-device", { device_id });
     }
 
     const data = await apiPost("/estudiantes/getEstuden", { device_id });
