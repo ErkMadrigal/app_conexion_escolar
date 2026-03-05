@@ -126,7 +126,7 @@ export async function enableWebPush(params: {
   const device_id = getOrCreateWebDeviceId();
   const subscriptionJson = sub.toJSON();
 
-  const backend = await apiPost("/api/push/register-webpush", {
+  const backend = await apiPost("/push/register-webpush", {
     platform: platform ?? "web", // o "ios_pwa"
     device_id,
     alumno_id,
@@ -169,7 +169,7 @@ export async function refreshWebPushRegistration(params: {
   const device_id = getOrCreateWebDeviceId();
   const subscriptionJson = sub.toJSON();
 
-  const backend = await apiPost("/api/push/register-webpush", {
+  const backend = await apiPost("/push/register-webpush", {
     platform: platform ?? "web",
     device_id,
     alumno_id,

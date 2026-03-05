@@ -13,7 +13,7 @@ export default defineConfig({
     legacy(),
     VitePWA({
       strategies: 'injectManifest',
-      
+
       srcDir: 'src',
       filename: 'sw.ts',
       registerType: 'autoUpdate',
@@ -35,6 +35,17 @@ export default defineConfig({
       devOptions: { enabled: false }
     })
   ],
+
+  // ✅ AGREGAR ESTO
+  server: {
+    host: true,
+    allowedHosts: [
+      'aubrianna-matripotestal-leonard.ngrok-free.dev'
+    ]
+    // (Opcional) si te cambia el subdominio cada rato, usa esto:
+    // allowedHosts: 'all'
+  },
+
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
