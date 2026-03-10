@@ -8,6 +8,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vitejs.dev/config/
 export default defineConfig({
+  base: '/app/',
   plugins: [
     vue(),
     legacy(),
@@ -23,13 +24,13 @@ export default defineConfig({
         short_name: 'Conexión',
         description: 'Conexión Escolar',
         display: 'standalone',
-        start_url: '/',
-        scope: '/',
+        start_url: '/app/',
+        scope: '/app/',
         theme_color: '#0ea5e9',
         background_color: '#ffffff',
         icons: [
-          { src: '/pwa-192x192.png', sizes: '192x192', type: 'image/png' },
-          { src: '/pwa-512x512.png', sizes: '512x512', type: 'image/png' }
+          { src: 'pwa-192x192.png', sizes: '192x192', type: 'image/png' },
+          { src: 'pwa-512x512.png', sizes: '512x512', type: 'image/png' }
         ]
       },
       devOptions: { enabled: false }
