@@ -4,7 +4,6 @@
       <ion-toolbar>
         <ion-title>Asistencias Estudiante</ion-title>
 
-        <!-- opcional: botón para regresar a hijos -->
         <ion-buttons slot="end">
           <ion-button router-link="/tabs/hijos">Hijos</ion-button>
         </ion-buttons>
@@ -12,14 +11,16 @@
 
       <ion-toolbar>
         <ion-segment v-model="tipe">
-          <ion-segment-button value="daily">
-            <ion-label>Diario</ion-label>
-          </ion-segment-button>
           <ion-segment-button value="weekly">
-            <ion-label>Semana</ion-label>
+            <ion-label>Semanal</ion-label>
           </ion-segment-button>
+
           <ion-segment-button value="monthly">
-            <ion-label>Mes</ion-label>
+            <ion-label>Mensual</ion-label>
+          </ion-segment-button>
+
+          <ion-segment-button value="all">
+            <ion-label>Personalizado</ion-label>
           </ion-segment-button>
         </ion-segment>
       </ion-toolbar>
@@ -30,15 +31,41 @@
         <ion-refresher-content />
       </ion-refresher>
 
-      <!-- ✅ Estudiante seleccionado (viene de HijosPage) -->
+      <!-- ✅ Estudiante seleccionado -->
       <ion-card v-if="selected">
         <ion-card-header>
           <ion-card-title>{{ selected.nombreCompleto }}</ion-card-title>
-          <ion-card-subtitle>Consulta por tipo: {{ tipe }}</ion-card-subtitle>
+          <ion-card-subtitle>Consulta por tipo: {{ tipeLabel }}</ion-card-subtitle>
         </ion-card-header>
 
         <ion-card-content>
-          <ion-button expand="block" :disabled="loading" @click="loadAssists(true)">
+          <!-- ✅ Fechas personalizadas -->
+          <div v-if="tipe === 'all'" class="custom-range-wrap">
+            <ion-item>
+              <ion-label position="stacked">Fecha inicio</ion-label>
+              <ion-input
+                type="date"
+                v-model="inicio"
+                placeholder="YYYY-MM-DD"
+              />
+            </ion-item>
+
+            <ion-item class="ion-margin-top">
+              <ion-label position="stacked">Fecha fin</ion-label>
+              <ion-input
+                type="date"
+                v-model="fin"
+                placeholder="YYYY-MM-DD"
+              />
+            </ion-item>
+          </div>
+
+          <ion-button
+            expand="block"
+            class="ion-margin-top"
+            :disabled="loading"
+            @click="loadAssists(true)"
+          >
             {{ loading ? "Cargando..." : "Actualizar" }}
           </ion-button>
 
@@ -64,7 +91,7 @@
         </ion-card-content>
       </ion-card>
 
-      <!-- Resultados -->
+      <!-- ✅ Resultados -->
       <ion-card v-if="selected && !loading">
         <ion-card-header>
           <ion-card-title>Resultados</ion-card-title>
@@ -87,14 +114,12 @@
           </div>
         </ion-card-content>
       </ion-card>
-
-      
     </ion-content>
   </ion-page>
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from "vue";
+import { ref, watch, computed } from "vue";
 import { onIonViewWillEnter } from "@ionic/vue";
 import { API_URL } from "@/config/api";
 import { getSelectedHijo } from "@/lib/state";
@@ -120,18 +145,17 @@ import {
   IonList,
   IonRefresher,
   IonRefresherContent,
-  IonAccordionGroup,
-  IonAccordion,
+  IonInput,
 } from "@ionic/vue";
 
-type Tipe = "daily" | "weekly" | "monthly";
+type Tipe = "weekly" | "monthly" | "all";
 
 type Hijo = {
   id: string | number;
   nombreCompleto: string;
 };
 
-const tipe = ref<Tipe>("daily");
+const tipe = ref<Tipe>("weekly");
 const selected = ref<Hijo | null>((getSelectedHijo() as any) ?? null);
 
 const loading = ref(false);
@@ -139,18 +163,50 @@ const errorMsg = ref("");
 
 const assists = ref<any[]>([]);
 const count = ref(0);
-
 const lastRaw = ref("");
+
+// ✅ rango personalizado
+const inicio = ref("");
+const fin = ref("");
+
+// ✅ etiqueta bonita
+const tipeLabel = computed(() => {
+  if (tipe.value === "weekly") return "Semanal";
+  if (tipe.value === "monthly") return "Mensual";
+  if (tipe.value === "all") return "Personalizado";
+  return tipe.value;
+});
 
 function pickDate(row: any) {
   return row?.ingreso ?? "Sin fecha";
 }
+
 function pickType(row: any) {
   return row?.tipo ?? "";
 }
+
 function pickName(row: any) {
   return row?.nombreCompleto ?? "";
 }
+
+function todayStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function firstDayOfMonthStr() {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}-01`;
+}
+
+// ✅ valores iniciales útiles
+if (!inicio.value) inicio.value = firstDayOfMonthStr();
+if (!fin.value) fin.value = todayStr();
 
 async function loadAssists(showErrors = true) {
   errorMsg.value = "";
@@ -158,13 +214,27 @@ async function loadAssists(showErrors = true) {
   count.value = 0;
   lastRaw.value = "";
 
-  // ✅ Re-lee por si cambió en HijosPage
   selected.value = (getSelectedHijo() as any) ?? null;
 
   const id = selected.value?.id ? Number(selected.value.id) : 0;
   if (id <= 0) {
-    if (showErrors) errorMsg.value = "Primero selecciona un estudiante en Mis hijos.";
+    if (showErrors) {
+      errorMsg.value = "Primero selecciona un estudiante en Mis hijos.";
+    }
     return;
+  }
+
+  // ✅ valida rango si es personalizado
+  if (tipe.value === "all") {
+    if (!inicio.value || !fin.value) {
+      if (showErrors) errorMsg.value = "Debes seleccionar fecha inicio y fecha fin.";
+      return;
+    }
+
+    if (inicio.value > fin.value) {
+      if (showErrors) errorMsg.value = "La fecha inicio no puede ser mayor a la fecha fin.";
+      return;
+    }
   }
 
   loading.value = true;
@@ -172,26 +242,41 @@ async function loadAssists(showErrors = true) {
   try {
     const url = `${API_URL}/estudiantes/getAssistsEstudent`;
 
+    const payload: any = {
+      tipe: tipe.value,
+      id_estudent: id,
+    };
+
+    if (tipe.value === "all") {
+      payload.inicio = inicio.value;
+      payload.fin = fin.value;
+    }
+
     const resp = await fetch(url, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tipe: tipe.value,
-        id_estudent: id,
-      }),
+      body: JSON.stringify(payload),
     });
 
     const text = await resp.text();
     lastRaw.value = text;
 
     let json: any = null;
-    try { json = JSON.parse(text); } catch {}
+    try {
+      json = JSON.parse(text);
+    } catch {}
 
-    if (!resp.ok) throw new Error(json?.message || `HTTP ${resp.status}`);
-    if (!json || json.status !== "ok") throw new Error(json?.message || "Respuesta inválida del servidor");
+    if (!resp.ok) {
+      throw new Error(json?.message || `HTTP ${resp.status}`);
+    }
+
+    if (!json || json.status !== "ok") {
+      throw new Error(json?.message || "Respuesta inválida del servidor");
+    }
 
     assists.value = Array.isArray(json.data) ? json.data : [];
-    count.value = typeof json.count === "number" ? json.count : assists.value.length;
+    count.value =
+      typeof json.count === "number" ? json.count : assists.value.length;
   } catch (e: any) {
     if (showErrors) errorMsg.value = e?.message || "Error al consultar";
   } finally {
@@ -204,13 +289,23 @@ async function onRefresh(ev: CustomEvent) {
   (ev.target as any).complete();
 }
 
-// ✅ Cada que entras a la pantalla, carga según el hijo seleccionado
 onIonViewWillEnter(() => {
   loadAssists(false);
 });
 
-// ✅ Si cambias el segment, recarga
 watch(tipe, () => {
-  loadAssists(false);
+  errorMsg.value = "";
+  assists.value = [];
+  count.value = 0;
+
+  if (tipe.value !== "all") {
+    loadAssists(false);
+  }
 });
 </script>
+
+<style scoped>
+.custom-range-wrap {
+  margin-top: 10px;
+}
+</style>
